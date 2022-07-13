@@ -1,36 +1,29 @@
-import { createSlice, nanoid } from "@reduxjs/toolkit";
+import { createSlice, nanoid, createAsyncThunk } from "@reduxjs/toolkit";
 import { sub } from "date-fns";
+import axios from "axios";
 
-const initialState = [
-  {
-    id: "1",
-    title: "리덕스 툴킷 이란..",
-    content:
-      "Redux Toolkit은 Redux 로직을 작성하기 위해 저희가 공식적으로 추천하는 방법입니다",
-    date: sub(new Date(), { minutes: 10 }).toISOString(),
-    reactions: {
-      thumbsUp: 0,
-      wow: 0,
-      heart: 0,
-      rocket: 0,
-      coffee: 0,
-    },
-  },
-  {
-    id: "2",
-    title: "Slices란..",
-    content:
-      "store안에 모든 정보를 담는데 프로그램이 커지면, 기능별로 작은 store를 만들어서 사용해야하는데 그걸 Slice라고함 ",
-    date: sub(new Date(), { minutes: 5 }).toISOString(),
-    reactions: {
-      thumbsUp: 0,
-      wow: 0,
-      heart: 0,
-      rocket: 0,
-      coffee: 0,
-    },
-  },
-];
+const POSTS_URL = "https://jsonplaceholder.typicode.com/posts";
+
+const initialState = {
+  posts: [],
+  status: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed',
+  errorr: null,
+};
+
+// 비동기 썬크 사용하여 API가져오기
+const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
+  try {
+    const res = await axios.get(POSTS_URL);
+    return [...res.data];
+  } catch (err) {
+    return err.messages;
+  }
+});
+
+const addNewPost = createAsyncThunk("posts/addNewPost", async (initialPost) => {
+  const response = await axios.post(POSTS_URL, initialPost);
+  return response.data;
+});
 
 const postsSlice = createSlice({
   name: "posts",
@@ -38,7 +31,7 @@ const postsSlice = createSlice({
   reducers: {
     postAdded: {
       reducer: (state, action) => {
-        state.push(action.payload);
+        state.posts.push(action.payload);
       },
 
       prepare: (title, content, userId) => {
@@ -65,7 +58,7 @@ const postsSlice = createSlice({
       // 받은 post.id와 reaction: name을 postId와 reaction에 할당
       const { postId, reaction } = action.payload;
 
-      const existingPost = state.find((post) => post.id === postId);
+      const existingPost = state.posts.find((post) => post.id === postId);
 
       // 게시물을 찾을경우 기존 게시글에 reactions[받은name]을 +1 증가시킴
       if (existingPost) {
@@ -73,9 +66,55 @@ const postsSlice = createSlice({
       }
     },
   },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchPosts.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.status = "succeeded";
+
+        // Adding date and reactions(날짜 및 반응 추가)
+        let min = 1;
+        const loadedPosts = action.payload.map((post) => {
+          post.date = sub(new Date(), { minutes: min++ }).toISOString();
+          post.reactions = {
+            thumbsUp: 0,
+            wow: 0,
+            heart: 0,
+            rocket: 0,
+            coffee: 0,
+          };
+          return post;
+        });
+        // Add any fetched posts to the array (가져온 게시물을 배열에 추가)
+        state.posts = state.posts.concat(loadedPosts);
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.error.message;
+      })
+      .addCase(addNewPost.fulfilled, (state, action) => {
+        action.payload.userId = Number(action.payload.userId);
+        action.payload.date = new Date().toISOString();
+        action.payload.reactions = {
+          thumbsUp: 0,
+          hooray: 0,
+          heart: 0,
+          rocket: 0,
+          eyes: 0,
+        };
+        console.log(action.payload);
+        state.posts.push(action.payload);
+      });
+  },
 });
 
-export const selectAllPosts = (state) => state.posts;
+export const selectAllPosts = (state) => state.posts.posts;
+export const getPostsStatus = (state) => state.posts.status;
+export const getPostsError = (state) => state.posts.error;
+
 export const { postAdded, reactionAdded } = postsSlice.actions;
+export { fetchPosts, addNewPost };
 
 export default postsSlice.reducer;

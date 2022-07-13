@@ -15,7 +15,7 @@ const ReactionButtons = ({ post }) => {
 
   // Object.entries() 메서드는 for in와 같은 순서로 주어진 객체 자체의 enumerable 속성 [key, value] 쌍의 배열을 반환
   const reactionButtons = Object.entries(reactionEmoji).map(([name, emoji]) => {
-    console.log(name, emoji);
+    // console.log(name, emoji);
     return (
       <button
         key={name}
